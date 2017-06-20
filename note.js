@@ -164,3 +164,54 @@ form.submit({
     remove() //只能删除record数据
     removeAll() //删除store里的所有数据
     add() //给store添加数据
+十三、grid常用配置（小技巧）
+  1.常用配置
+    viewConfig: {
+        stripeRows:true, //显示斑马线
+        enableTextSelection:true //可以复制表格
+    },//页面配置
+    selModel: {
+        type: 'checkboxmodel'
+    },//模型为CheckBox grid
+  2.监听表格常用方法
+    listeners: {
+        afterrender: 'onAfterRenderGrid', //表格渲染后执行
+        selectionchange: 'onSelectionChangeRecord',
+        itemclick: 'onItemClick'
+   }
+   //获取grid选择的操作数
+   onSelectionChangeRecord: function (grid, records) {
+		var viewModel = this.getViewModel();
+		viewModel.set('selectRecords', records);
+	},
+  //点击按钮执行
+  //相应按钮view写法
+  {
+        xtype: 'widgetcolumn',
+        align: 'center',
+        text: '操作',
+        widget: {
+            xtype: 'button',
+            align: 'center',
+            width: 65,
+            height: 25,
+            cls:'viewBtn',
+            text: '查看'
+
+        }
+    }
+  //点击按钮执行部分
+  onItemClick:function(grid, records){
+      //获取按钮方法
+      var button = grid.focusEl.dom.getElementsByTagName('a')[0];
+      if(button == null || button == undefined) return;
+      var buttonArrt = grid.focusEl.dom.getElementsByTagName('a')[0].getAttribute('role');
+      if(buttonArrt != 'button'){
+        return;
+      }
+      var buttonType = button.getAttribute('class');
+      if(buttonType.indexOf('viewBtn') < -1 ){
+        return;
+      }
+      //获取成功后执行各种想执行的
+}
