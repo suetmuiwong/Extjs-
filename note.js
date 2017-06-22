@@ -164,6 +164,49 @@ form.submit({
     remove() //只能删除record数据
     removeAll() //删除store里的所有数据
     add() //给store添加数据
+    2.给远程store 插入数据（插入位置为第一个，combox）insert
+    //在store下添加一个load函数
+    listeners:{
+          load : function( store, records, successful, operation){
+            if(successful){
+                var ins_rec ={
+                    app_id : 'all',
+                    app_name :'插入数据',
+                };
+                store.insert(0,ins_rec);
+            }
+        }
+    }
+
+    3.动态添加store参数（proxy）
+    //例子如下
+    store.setProxy({
+       type: 'ajax',
+       url:'/cloudadmin/orderProcess/list',
+       reader:{
+         type:'json',
+         rootProperty:'list',
+         totalProperty: 'count'
+       },
+       cors: true,
+       useDefaultXhrHeader:false,
+       actionMethods: {
+         create : 'POST',
+         read   : 'POST', // by default GET
+         update : 'POST',
+         destroy: 'POST'
+       },
+       extraParams:{
+         "user_token":Ext.util.Cookies.get('user_token'),
+         "start":0,
+         "date_type":date_type,
+         "startdate":startdate,
+         "enddate":enddate,
+         'language':'zh_CN',
+         "time_zone":new Date().getTimezoneOffset()/60,
+       }　
+     });
+
 十三、grid常用配置（小技巧）
   1.常用配置
     viewConfig: {
@@ -214,4 +257,134 @@ form.submit({
         return;
       }
       //获取成功后执行各种想执行的
+    }
+  3.grid 分页问题
+  //自定义分页插件
+  Ext.define('CloudApp.view.public.CusPagingToolbar', {
+    extend : 'Ext.toolbar.Paging',
+    alias : 'widget.cuspagingtoolbar',
+    displayInfo : true,
+    prependButtons : true,
+    dock : 'bottom',
+    initComponent : function() {
+        var me = this;
+        me.items = [ {
+            xtype : 'combobox',
+            fieldLabel : CloudApp.language.text('per_page_show'),
+            width : 130,
+            editable : false,
+            labelWidth : 60,
+            store : [ '20', '50', '100' ],
+            listeners : {
+                afterrender : function(combo, eOpts) {
+                    combo.setValue(combo.ownerCt.getStore().getPageSize());
+                },
+                select : function(combo, records, eOpts) {
+                    var ownerCt = combo.ownerCt, store = ownerCt.getStore();
+                    store.pageSize = combo.getValue();
+                    store.currentPage = 1;
+                    ownerCt.doRefresh();
+                }
+            }
+        } ];
+        me.callParent();
+        me.on('afterrender', function() {
+            me.ownerCt.on('reconfigure', function() {
+                me.bindStore(me.ownerCt.store || 'ext-empty-store', true);
+            });
+        });
+    }
+})
+//在页面直接引入使用
+dockedItems: [
+        {
+            xtype: 'toolbar',
+            dock: 'top',
+            ui: 'footer',
+            items:[
+              {
+                xtype: 'cuspagingtoolbar'
+              }
+            ]
+        }
+  //在store里加上以下函数便可以设置选择的页数
+  listeners:{
+   beforeload:function (store, options) {
+              var params =options.config.scope.proxy.extraParams;
+              Ext.apply(params, {start: options.config.start,count:options.config.limit, limit:options.config.limit});
+              Ext.apply(store.proxy.extraParams, params);
+      },
 }
+十四、图片上传
+
+    /**
+     * 从 file 域获取 本地图片 url
+     */
+    getFileUrl: function (dom) {
+        var url;
+        if (navigator.userAgent.indexOf("MSIE") >= 1) { // IE
+            url = dom.value;
+        } else { //非ie
+            url = window.URL.createObjectURL(dom.files.item(0));
+        }
+        return url;
+    },
+
+    /**
+     * 上传图片按钮
+     *
+     */
+
+    onChangeFileField: function (e) {
+        // 文件路径console.log(e.value)
+        //在这里获取viewModel 存入图片url
+        var storeGoodsId = e.id.replace('form_file_',"");
+        var me = this;
+        var viewModel = this.getViewModel();
+        var fileUrl = this.getFileUrl(e.fileInputEl.dom);
+        viewModel.set('goodsImage', fileUrl);
+        viewModel.set('file', e.fileInputEl.dom.value) //files[0]
+        //当前图片上传
+        var file = e.fileInputEl.dom.files[0]
+        //console.log(file)
+        var user_token = Ext.util.Cookies.get('user_token');
+        var oData = new FormData();
+        oData.append('goods_img', file)
+        oData.append('user_token', user_token);
+        oData.append("resource_name", "goods_img")
+
+        var XHR = new XMLHttpRequest();
+        XHR.open( "POST", "/cloudadmin/goodsProcess/upload" , true );
+        XHR.onreadystatechange  = function(oEvent) {
+            if (XHR.readyState == 4 && XHR.status == 200) {
+              var responseJSON = JSON.parse(XHR.responseText)
+              //console.log(responseJSON);
+              responseJSON['goods_id'] = storeGoodsId;
+              console.log(responseJSON);
+
+              //这里可以将新增的商品图片保存在goodswinstore
+              var goodswinstore = Ext.data.StoreManager.lookup('goods.goodswinstore');
+                var findRecord = goodswinstore.findRecord('goods_id', storeGoodsId)
+              console.log(findRecord)
+              if(findRecord == ''|| findRecord == null || findRecord == undefined){
+                goodswinstore.add(responseJSON);
+              }else{
+                findRecord.set('goods_imgurl', responseJSON.goods_imgurl)
+                findRecord.set('goods_object', responseJSON.goods_object)
+              }
+              console.log(goodswinstore);
+
+
+            //  var goodsPics =goodswinstore.getData().items;
+              //console.log(goodswinstore);
+              var goods_img = document.querySelectorAll('.goods_img');
+              console.log(goods_img[goods_img.length-1])
+                goods_img[goods_img.length-1].setAttribute('src',responseJSON.goods_imgurl);
+
+           } else if(XHR.readyState == 4 && XHR.status != 200){
+                console.log('error:'+XHR.responseText)
+           }
+        };
+        XHR.send(oData);
+
+    },
